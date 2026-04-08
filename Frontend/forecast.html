@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>InsightX — AI Demand Forecast</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Syne:wght@400;600;700&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-deep:    #020817;
+      --bg-card:    #0a1628;
+      --accent-1:   #00d4ff;
+      --accent-2:   #0066ff;
+      --accent-glow:#00d4ff44;
+      --green:      #00e5a0;
+      --red:        #ff4455;
+      --yellow:     #ffcc00;
+      --purple:     #a855f7;
+      --text-bright:#e8f4fd;
+      --text-muted: #6b8cad;
+      --border:     rgba(0,212,255,0.15);
+      --sidebar-w:  240px;
+    }
+    *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+    html { scroll-behavior:smooth; }
+    body { font-family:'Syne',sans-serif; background:var(--bg-deep); color:var(--text-bright); display:flex; min-height:100vh; overflow-x:hidden; }
+    a { text-decoration:none; color:inherit; }
+
+    /* ── SIDEBAR ── */
+    .sidebar { width:var(--sidebar-w); min-height:100vh; background:var(--bg-card); border-right:1px solid var(--border); display:flex; flex-direction:column; position:fixed; top:0; left:0; z-index:50; transition:transform 0.3s; }
+    .sidebar-logo { padding:1.5rem 1.5rem 1rem; border-bottom:1px solid var(--border); }
+    .logo-text { font-family:'Orbitron',monospace; font-size:1.2rem; font-weight:900; background:linear-gradient(90deg,var(--accent-1),var(--accent-2)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; letter-spacing:2px; }
+    .logo-sub { font-size:0.62rem; color:var(--text-muted); letter-spacing:3px; margin-top:2px; font-family:'JetBrains Mono',monospace; }
+    .sidebar-nav { flex:1; padding:1.2rem 0; }
+    .nav-section-label { font-size:0.62rem; letter-spacing:3px; color:var(--text-muted); text-transform:uppercase; padding:0.8rem 1.5rem 0.4rem; font-family:'JetBrains Mono',monospace; }
+    .nav-item { display:flex; align-items:center; gap:12px; padding:11px 1.5rem; cursor:pointer; transition:all 0.2s; border-left:3px solid transparent; font-size:0.88rem; font-weight:600; color:var(--text-muted); }
+    .nav-item:hover { color:var(--text-bright); background:rgba(0,212,255,0.05); }
+    .nav-item.active { color:var(--accent-1); background:rgba(0,212,255,0.08); border-left-color:var(--accent-1); }
+    .nav-item .icon { font-size:1.1rem; width:22px; text-align:center; }
+    .nav-badge { margin-left:auto; background:var(--red); color:#fff; font-size:0.65rem; padding:2px 7px; border-radius:50px; font-weight:700; }
+    .sidebar-user { padding:1rem 1.5rem; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+    .user-avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,var(--accent-2),var(--accent-1)); display:flex; align-items:center; justify-content:center; font-weight:900; font-size:0.85rem; flex-shrink:0; }
+    .user-name { font-size:0.82rem; font-weight:700; }
+    .user-role { font-size:0.7rem; color:var(--text-muted); }
+
+    /* ── MAIN ── */
+    .main { margin-left:var(--sidebar-w); flex:1; display:flex; flex-direction:column; min-height:100vh; }
+
+    /* ── TOPBAR ── */
+    .topbar { position:sticky; top:0; z-index:40; background:rgba(2,8,23,0.92); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); padding:0 2rem; height:64px; display:flex; align-items:center; justify-content:space-between; }
+    .topbar-left h1 { font-family:'Orbitron',monospace; font-size:1.05rem; font-weight:700; }
+    .topbar-left p  { font-size:0.75rem; color:var(--text-muted); margin-top:1px; font-family:'JetBrains Mono',monospace; }
+    .topbar-right { display:flex; align-items:center; gap:0.7rem; flex-wrap:wrap; }
+    .topbar-btn { background:rgba(0,212,255,0.08); border:1px solid var(--border); color:var(--text-muted); padding:7px 15px; border-radius:8px; font-size:0.8rem; cursor:pointer; transition:all 0.2s; font-family:'Syne',sans-serif; display:flex; align-items:center; gap:6px; }
+    .topbar-btn:hover { color:var(--accent-1); border-color:var(--accent-1); }
+    .topbar-btn.primary { background:linear-gradient(135deg,var(--accent-2),var(--accent-1)); color:#fff; border:none; font-weight:700; box-shadow:0 0 20px var(--accent-glow); }
+    .topbar-btn.primary:hover { transform:translateY(-2px); box-shadow:0 0 30px var(--accent-glow); color:#fff; }
+    .hamburger-btn { display:none; background:none; border:none; cursor:pointer; color:var(--text-muted); font-size:1.3rem; }
+    .ai-badge { display:flex; align-items:center; gap:6px; background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); border-radius:50px; padding:5px 14px; font-size:0.72rem; color:var(--purple); font-family:'JetBrains Mono',monospace; }
+    .ai-dot { width:7px; height:7px; border-radius:50%; background:var(--purple); animation:pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }
+
+    /* ── CONTENT ── */
+    .content { padding:1.8rem 2rem; flex:1; }
+
+    /* ── MODEL STATUS BAR ── */
+    .model-bar { background:var(--bg-card); border:1px solid rgba(168,85,247,0.25); border-radius:14px; padding:1.2rem 1.5rem; margin-bottom:1.8rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; }
+    .model-info { display:flex; align-items:center; gap:1.2rem; flex-wrap:wrap; }
+    .model-name { font-family:'Orbitron',monospace; font-size:0.95rem; font-weight:700; color:var(--purple); }
+    .model-sub  { font-size:0.72rem; color:var(--text-muted); margin-top:2px; font-family:'JetBrains Mono',monospace; }
+    .model-metrics { display:flex; gap:1.5rem; flex-wrap:wrap; }
+    .model-metric { text-align:center; }
+    .model-metric-val { font-family:'Orbitron',monospace; font-size:1.1rem; font-weight:900; }
+    .model-metric-label { font-size:0.65rem; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase; margin-top:2px; }
+    .retrain-btn { background:rgba(168,85,247,0.12); border:1px solid rgba(168,85,247,0.3); color:var(--purple); padding:8px 18px; border-radius:8px; font-size:0.8rem; cursor:pointer; transition:all 0.3s; font-family:'Syne',sans-serif; font-weight:700; display:flex; align-items:center; gap:6px; }
+    .retrain-btn:hover { background:rgba(168,85,247,0.2); transform:translateY(-2px); }
+    .retrain-btn.loading { opacity:0.6; cursor:not-allowed; }
+
+    /* ── SECTION HEADER ── */
+    .sec-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.2rem; }
+    .sec-title { font-family:'Orbitron',monospace; font-size:0.95rem; font-weight:700; }
+    .sec-sub   { font-size:0.75rem; color:var(--text-muted); margin-top:2px; }
+    .sec-btn   { background:none; border:1px solid var(--border); color:var(--text-muted); padding:6px 14px; border-radius:8px; font-size:0.75rem; cursor:pointer; transition:all 0.2s; font-family:'Syne',sans-serif; }
+    .sec-btn:hover { color:var(--accent-1); border-color:var(--accent-1); }
+
+    /* ── KPI ROW ── */
+    .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:1.2rem; margin-bottom:1.8rem; }
+    .kpi-card { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:1.2rem 1.4rem; transition:all 0.3s; position:relative; overflow:hidden; }
+    .kpi-card::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--kpi-c,var(--accent-1)); opacity:0.5; }
+    .kpi-card:hover { transform:translateY(-4px); box-shadow:0 16px 40px rgba(0,0,0,0.35); }
+    .kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.7rem; }
+    .kpi-icon { font-size:1.4rem; }
+    .kpi-badge { font-size:0.7rem; font-family:'JetBrains Mono',monospace; padding:3px 8px; border-radius:50px; }
+    .kpi-badge.up   { background:rgba(0,229,160,0.12); color:var(--green); }
+    .kpi-badge.down { background:rgba(255,68,85,0.12);  color:var(--red);   }
+    .kpi-badge.neu  { background:rgba(0,212,255,0.1);   color:var(--accent-1); }
+    .kpi-val  { font-family:'Orbitron',monospace; font-size:1.6rem; font-weight:900; line-height:1; }
+    .kpi-label{ font-size:0.72rem; color:var(--text-muted); margin-top:4px; letter-spacing:1px; }
+
+    /* ── MAIN FORECAST CHART ── */
+    .main-chart-card { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:1.5rem; margin-bottom:1.8rem; }
+    .chart-controls { display:flex; align-items:center; gap:0.8rem; flex-wrap:wrap; margin-bottom:1.2rem; }
+    .product-select { background:var(--bg-deep); border:1px solid var(--border); border-radius:8px; color:var(--text-bright); padding:8px 14px; font-family:'Syne',sans-serif; font-size:0.85rem; outline:none; cursor:pointer; min-width:220px; }
+    .product-select:focus { border-color:var(--accent-1); }
+    .horizon-tabs { display:flex; gap:4px; }
+    .h-tab { padding:6px 14px; border-radius:7px; font-size:0.75rem; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-muted); font-family:'Syne',sans-serif; font-weight:600; transition:all 0.2s; }
+    .h-tab.active { background:rgba(0,212,255,0.12); color:var(--accent-1); border-color:var(--accent-1); }
+    .chart-wrap-tall { position:relative; height:300px; }
+    .chart-legend-custom { display:flex; gap:1.2rem; margin-top:0.8rem; flex-wrap:wrap; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-size:0.75rem; color:var(--text-muted); }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+    /* ── TWO COL ROW ── */
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-bottom:1.8rem; }
+    .card { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:1.5rem; }
+    .chart-wrap-sm { position:relative; height:220px; }
+
+    /* ── PRODUCT FORECAST TABLE ── */
+    .forecast-table-card { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:1.8rem; }
+    .f-table { width:100%; border-collapse:collapse; }
+    .f-table thead th { padding:10px 16px; font-size:0.68rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:1.5px; text-align:left; background:rgba(0,212,255,0.03); border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; white-space:nowrap; }
+    .f-table tbody tr { border-bottom:1px solid rgba(0,212,255,0.06); transition:background 0.15s; }
+    .f-table tbody tr:last-child { border-bottom:none; }
+    .f-table tbody tr:hover { background:rgba(0,212,255,0.04); }
+    .f-table tbody td { padding:12px 16px; font-size:0.85rem; vertical-align:middle; }
+    .prod-name { font-weight:700; }
+    .prod-cat  { font-size:0.7rem; color:var(--text-muted); margin-top:2px; }
+    .trend-pill { display:inline-flex; align-items:center; gap:4px; padding:3px 10px; border-radius:50px; font-size:0.72rem; font-weight:700; font-family:'JetBrains Mono',monospace; }
+    .trend-pill.up   { background:rgba(0,229,160,0.12); color:var(--green); }
+    .trend-pill.down { background:rgba(255,68,85,0.12);  color:var(--red); }
+    .trend-pill.flat { background:rgba(0,212,255,0.1);   color:var(--accent-1); }
+    .conf-bar { width:80px; height:5px; background:rgba(255,255,255,0.07); border-radius:50px; overflow:hidden; display:inline-block; vertical-align:middle; margin-right:6px; }
+    .conf-fill { height:100%; border-radius:50px; background:var(--purple); }
+    .conf-val { font-size:0.75rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    .restock-rec { font-size:0.8rem; }
+    .restock-rec.urgent { color:var(--red); font-weight:700; }
+    .restock-rec.soon   { color:var(--yellow); font-weight:600; }
+    .restock-rec.ok     { color:var(--green); }
+
+    /* ── HOW ML WORKS ── */
+    .ml-section { background:var(--bg-card); border:1px solid rgba(168,85,247,0.2); border-radius:14px; padding:1.8rem; margin-bottom:1.8rem; }
+    .ml-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-top:1.2rem; }
+    .ml-step { background:rgba(168,85,247,0.05); border:1px solid rgba(168,85,247,0.15); border-radius:12px; padding:1.2rem; transition:all 0.3s; }
+    .ml-step:hover { border-color:rgba(168,85,247,0.4); transform:translateY(-4px); }
+    .ml-step-num { font-family:'Orbitron',monospace; font-size:0.7rem; color:var(--purple); letter-spacing:2px; margin-bottom:0.5rem; }
+    .ml-step-icon { font-size:1.6rem; margin-bottom:0.6rem; }
+    .ml-step-title { font-size:0.85rem; font-weight:700; margin-bottom:0.4rem; color:var(--text-bright); }
+    .ml-step-desc { font-size:0.75rem; color:var(--text-muted); line-height:1.6; }
+    .ml-step-tech { display:inline-block; margin-top:0.6rem; padding:2px 8px; background:rgba(168,85,247,0.1); border-radius:4px; font-size:0.65rem; color:var(--purple); font-family:'JetBrains Mono',monospace; }
+
+    /* ── API CONNECT SECTION ── */
+    .api-section { background:var(--bg-card); border:1px solid var(--border); border-radius:14px; padding:1.8rem; margin-bottom:1.8rem; }
+    .api-grid { display:grid; grid-template-columns:1fr 1fr; gap:1.2rem; margin-top:1.2rem; }
+    .api-card { border:1px solid var(--border); border-radius:12px; padding:1.2rem; background:rgba(0,0,0,0.2); }
+    .api-card-title { font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--accent-1); margin-bottom:0.6rem; display:flex; align-items:center; gap:8px; }
+    .method-badge { padding:2px 8px; border-radius:4px; font-size:0.65rem; font-weight:700; }
+    .method-badge.get  { background:rgba(0,229,160,0.15); color:var(--green); }
+    .method-badge.post { background:rgba(0,102,255,0.15);  color:var(--accent-2); }
+    .code-block { background:rgba(0,0,0,0.4); border:1px solid rgba(0,212,255,0.1); border-radius:8px; padding:0.8rem 1rem; font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--text-muted); overflow-x:auto; white-space:pre; line-height:1.6; margin-top:0.5rem; }
+    .code-block .kw  { color:var(--accent-1); }
+    .code-block .str { color:var(--green); }
+    .code-block .num { color:var(--yellow); }
+    .code-block .cmt { color:#3d5a73; }
+    .api-note { font-size:0.75rem; color:var(--text-muted); margin-top:1.2rem; background:rgba(0,212,255,0.05); border:1px solid var(--border); border-radius:8px; padding:0.8rem 1rem; font-family:'JetBrains Mono',monospace; line-height:1.7; }
+    .api-note .hl { color:var(--accent-1); }
+
+    /* ── TOAST ── */
+    #toast { position:fixed; bottom:28px; right:28px; z-index:999; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:0.9rem 1.4rem; display:flex; align-items:center; gap:10px; transform:translateY(100px); opacity:0; transition:all 0.4s ease; box-shadow:0 20px 60px rgba(0,0,0,0.6); min-width:260px; max-width:340px; }
+    #toast.show { transform:translateY(0); opacity:1; }
+    .toast-text { font-size:0.84rem; }
+    .toast-sub  { font-size:0.72rem; color:var(--text-muted); margin-top:2px; }
+
+    /* ── RETRAIN PROGRESS ── */
+    .retrain-overlay { position:fixed; inset:0; background:rgba(2,8,23,0.88); backdrop-filter:blur(10px); z-index:300; display:none; align-items:center; justify-content:center; }
+    .retrain-overlay.open { display:flex; }
+    .retrain-box { background:var(--bg-card); border:1px solid rgba(168,85,247,0.3); border-radius:20px; padding:2.5rem; width:90%; max-width:420px; text-align:center; }
+    .retrain-title { font-family:'Orbitron',monospace; font-size:1rem; font-weight:700; color:var(--purple); margin-bottom:0.5rem; }
+    .retrain-sub { font-size:0.8rem; color:var(--text-muted); margin-bottom:2rem; }
+    .progress-bar { background:rgba(255,255,255,0.07); border-radius:50px; height:8px; overflow:hidden; margin-bottom:0.8rem; }
+    .progress-fill { height:100%; background:linear-gradient(90deg,var(--accent-2),var(--purple)); border-radius:50px; width:0%; transition:width 0.4s; }
+    .progress-label { font-size:0.78rem; color:var(--text-muted); font-family:'JetBrains Mono',monospace; }
+    .retrain-steps { display:flex; flex-direction:column; gap:0.5rem; margin-top:1.5rem; text-align:left; }
+    .rtrain-step { display:flex; align-items:center; gap:10px; font-size:0.8rem; color:var(--text-muted); transition:color 0.3s; }
+    .rtrain-step.done { color:var(--green); }
+    .rtrain-step.active { color:var(--accent-1); }
+    .rtrain-step-icon { width:20px; text-align:center; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width:5px; height:5px; }
+    ::-webkit-scrollbar-track { background:var(--bg-deep); }
+    ::-webkit-scrollbar-thumb { background:rgba(0,212,255,0.2); border-radius:50px; }
+
+    /* ── RESPONSIVE ── */
+    @media(max-width:1100px){ .kpi-row{grid-template-columns:repeat(2,1fr)} .ml-grid{grid-template-columns:repeat(2,1fr)} .api-grid{grid-template-columns:1fr} .two-col{grid-template-columns:1fr} }
+    @media(max-width:768px){ :root{--sidebar-w:0px} .sidebar{transform:translateX(-240px);width:240px} .sidebar.open{transform:translateX(0)} .main{margin-left:0} .hamburger-btn{display:block} .kpi-row{grid-template-columns:1fr 1fr} .content{padding:1rem} .ml-grid{grid-template-columns:1fr 1fr} }
+    @media(max-width:480px){ .kpi-row{grid-template-columns:1fr} .ml-grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+
+<!-- ░░ SIDEBAR ░░ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-text">InsightX</div>
+    <div class="logo-sub">// FORECAST v1.0</div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a class="nav-item" href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+    <a class="nav-item" href="inventory.html"><span class="icon">📦</span> Inventory</a>
+    <a class="nav-item active" href="forecast.html"><span class="icon">🧠</span> AI Forecast</a>
+    <div class="nav-section-label">Insights</div>
+    <a class="nav-item" href="#"><span class="icon">📈</span> Analytics</a>
+    <a class="nav-item" href="#"><span class="icon">🔔</span> Alerts<span class="nav-badge">3</span></a>
+    <a class="nav-item" href="#"><span class="icon">📁</span> Reports</a>
+    <div class="nav-section-label">Settings</div>
+    <a class="nav-item" href="#"><span class="icon">⚙️</span> Settings</a>
+    <a class="nav-item" href="index.html"><span class="icon">🚪</span> Logout</a>
+  </nav>
+  <div class="sidebar-user">
+    <div class="user-avatar">RS</div>
+    <div><div class="user-name">Rahul Sharma</div><div class="user-role">Admin · Free Tier</div></div>
+  </div>
+</aside>
+
+<!-- ░░ MAIN ░░ -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>AI Demand Forecasting</h1>
+      <p>// Random Forest · Trained on your sales history · Updated daily</p>
+    </div>
+    <div class="topbar-right">
+      <div class="ai-badge"><div class="ai-dot"></div> Model Active</div>
+      <button class="topbar-btn" onclick="exportForecast()">⬇ Export Forecast</button>
+      <button class="topbar-btn primary" onclick="startRetrain()">🔄 Retrain Model</button>
+      <button class="hamburger-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- MODEL STATUS BAR -->
+    <div class="model-bar">
+      <div class="model-info">
+        <div>
+          <div class="model-name">🧠 Random Forest Regressor</div>
+          <div class="model-sub">// Last trained: Today 06:00 AM · 14 products · 90-day history · n_estimators=100</div>
+        </div>
+        <div class="model-metrics">
+          <div class="model-metric"><div class="model-metric-val" style="color:var(--green)">94.2%</div><div class="model-metric-label">Accuracy (R²)</div></div>
+          <div class="model-metric"><div class="model-metric-val" style="color:var(--accent-1)">3.1</div><div class="model-metric-label">RMSE</div></div>
+          <div class="model-metric"><div class="model-metric-val" style="color:var(--yellow)">2.8%</div><div class="model-metric-label">MAPE</div></div>
+          <div class="model-metric"><div class="model-metric-val" style="color:var(--purple)">30</div><div class="model-metric-label">Max Horizon (days)</div></div>
+        </div>
+      </div>
+      <button class="retrain-btn" id="retrainBtn" onclick="startRetrain()">
+        🔄 Retrain Model
+      </button>
+    </div>
+
+    <!-- KPI ROW -->
+    <div class="kpi-row">
+      <div class="kpi-card" style="--kpi-c:var(--green)">
+        <div class="kpi-top"><span class="kpi-icon">📈</span><span class="kpi-badge up">↑ 18%</span></div>
+        <div class="kpi-val">+18%</div>
+        <div class="kpi-label">Overall Demand Trend (7d)</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--red)">
+        <div class="kpi-top"><span class="kpi-icon">⚠️</span><span class="kpi-badge down">Urgent</span></div>
+        <div class="kpi-val">3</div>
+        <div class="kpi-label">Stockouts Predicted (14d)</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--purple)">
+        <div class="kpi-top"><span class="kpi-icon">🧠</span><span class="kpi-badge neu">AI</span></div>
+        <div class="kpi-val">94%</div>
+        <div class="kpi-label">Forecast Accuracy</div>
+      </div>
+      <div class="kpi-card" style="--kpi-c:var(--yellow)">
+        <div class="kpi-top"><span class="kpi-icon">💡</span><span class="kpi-badge up">Smart</span></div>
+        <div class="kpi-val">₹62K</div>
+        <div class="kpi-label">Predicted Revenue (7d)</div>
+      </div>
+    </div>
+
+    <!-- MAIN FORECAST CHART -->
+    <div class="main-chart-card">
+      <div class="sec-hdr">
+        <div>
+          <div class="sec-title">📊 Demand Forecast Chart</div>
+          <div class="sec-sub">Historical sales vs AI-predicted demand with confidence bands</div>
+        </div>
+      </div>
+      <div class="chart-controls">
+        <select class="product-select" id="productSelect" onchange="updateForecastChart()">
+          <option value="0">Wireless Earbuds Pro X200</option>
+          <option value="1">USB-C Fast Charger 65W</option>
+          <option value="2">Handmade Cotton Kurta (M)</option>
+          <option value="3">Organic Basmati Rice 5kg</option>
+          <option value="4">Madhubani Art Print A3</option>
+        </select>
+        <div class="horizon-tabs">
+          <button class="h-tab active" onclick="setHorizon(7,this)">7 Days</button>
+          <button class="h-tab" onclick="setHorizon(14,this)">14 Days</button>
+          <button class="h-tab" onclick="setHorizon(30,this)">30 Days</button>
+        </div>
+      </div>
+      <div class="chart-wrap-tall">
+        <canvas id="mainForecastChart"></canvas>
+      </div>
+      <div class="chart-legend-custom">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-2)"></div> Actual Sales</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-1)"></div> AI Forecast</div>
+        <div class="legend-item"><div class="legend-dot" style="background:rgba(0,212,255,0.2);border-radius:2px;width:18px;height:10px"></div> Confidence Band</div>
+      </div>
+    </div>
+
+    <!-- TWO COLUMN: Seasonal + Category Demand -->
+    <div class="two-col">
+      <div class="card">
+        <div class="sec-hdr">
+          <div><div class="sec-title">📅 Seasonal Demand Pattern</div><div class="sec-sub">Monthly trend across all products</div></div>
+        </div>
+        <div class="chart-wrap-sm"><canvas id="seasonalChart"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="sec-hdr">
+          <div><div class="sec-title">🏷 Category-wise Forecast</div><div class="sec-sub">Predicted demand by category (next 7 days)</div></div>
+        </div>
+        <div class="chart-wrap-sm"><canvas id="categoryChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- PRODUCT FORECAST TABLE -->
+    <div class="forecast-table-card">
+      <div style="padding:1.2rem 1.5rem; border-bottom:1px solid var(--border);">
+        <div class="sec-hdr" style="margin-bottom:0">
+          <div><div class="sec-title">🔍 Product-wise Forecast Summary</div><div class="sec-sub">AI predictions + restock recommendations for each product</div></div>
+          <button class="sec-btn" onclick="exportForecast()">⬇ Export</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="f-table">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Curr. Stock</th>
+              <th>7-Day Forecast</th>
+              <th>14-Day Forecast</th>
+              <th>Demand Trend</th>
+              <th>Confidence</th>
+              <th>Restock Advice</th>
+            </tr>
+          </thead>
+          <tbody id="forecastTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- HOW ML WORKS -->
+    <div class="ml-section">
+      <div class="sec-hdr">
+        <div>
+          <div class="sec-title" style="color:var(--purple)">🔬 How the ML Model Works</div>
+          <div class="sec-sub">Understanding the AI pipeline behind InsightX forecasting</div>
+        </div>
+      </div>
+      <div class="ml-grid">
+        <div class="ml-step">
+          <div class="ml-step-num">STEP 01</div>
+          <div class="ml-step-icon">📥</div>
+          <div class="ml-step-title">Data Collection</div>
+          <div class="ml-step-desc">Daily sales records are stored in SQLite. Each row contains product ID, date, units sold, price, and day-of-week. Minimum 7 days needed to train.</div>
+          <span class="ml-step-tech">pandas · SQLite</span>
+        </div>
+        <div class="ml-step">
+          <div class="ml-step-num">STEP 02</div>
+          <div class="ml-step-icon">🔧</div>
+          <div class="ml-step-title">Feature Engineering</div>
+          <div class="ml-step-desc">Raw data is transformed into ML features: rolling averages (7d, 14d), day-of-week encoding, lag features (yesterday's sales), month, season flags.</div>
+          <span class="ml-step-tech">scikit-learn · numpy</span>
+        </div>
+        <div class="ml-step">
+          <div class="ml-step-num">STEP 03</div>
+          <div class="ml-step-icon">🌲</div>
+          <div class="ml-step-title">Model Training</div>
+          <div class="ml-step-desc">A Random Forest Regressor is trained per product. 100 decision trees vote on the predicted demand. Cross-validation ensures no overfitting.</div>
+          <span class="ml-step-tech">RandomForestRegressor · joblib</span>
+        </div>
+        <div class="ml-step">
+          <div class="ml-step-num">STEP 04</div>
+          <div class="ml-step-icon">📡</div>
+          <div class="ml-step-title">Serve via API</div>
+          <div class="ml-step-desc">Trained model is saved as a .pkl file. Flask loads it and serves predictions through a REST API endpoint that this frontend calls in real-time.</div>
+          <span class="ml-step-tech">Flask · joblib · JSON API</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- API CONNECTION SECTION -->
+    <div class="api-section">
+      <div class="sec-hdr">
+        <div>
+          <div class="sec-title">🔌 Backend API Integration</div>
+          <div class="sec-sub">How this page will connect to your Flask ML backend in Phase 2</div>
+        </div>
+      </div>
+      <div class="api-grid">
+        <div class="api-card">
+          <div class="api-card-title"><span class="method-badge get">GET</span> /api/forecast/&lt;product_id&gt;</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Get AI forecast for a specific product</div>
+          <div class="code-block"><span class="cmt">// JavaScript fetch call (Phase 2)</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">'/api/forecast/1?days=7'</span>
+);
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();
+<span class="cmt">// data = {
+//   product_id: 1,
+//   forecast: [48, 55, 51, ...],
+//   confidence: 0.94,
+//   trend: "up"
+// }</span></div>
+        </div>
+        <div class="api-card">
+          <div class="api-card-title"><span class="method-badge post">POST</span> /api/model/retrain</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Trigger model retraining with latest data</div>
+          <div class="code-block"><span class="cmt">// Retrain API call (Phase 2)</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">'/api/model/retrain'</span>,
+  { method: <span class="str">'POST'</span> }
+);
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();
+<span class="cmt">// data = {
+//   status: "success",
+//   accuracy: 0.942,
+//   trained_at: "2025-03-30"
+// }</span></div>
+        </div>
+        <div class="api-card">
+          <div class="api-card-title"><span class="method-badge get">GET</span> /api/forecast/all</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Get forecast summary for all products</div>
+          <div class="code-block"><span class="cmt">// Get all forecasts (Phase 2)</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">'/api/forecast/all'</span>
+);
+<span class="kw">const</span> data = <span class="kw">await</span> res.json();
+<span class="cmt">// data = {
+//   products: [...],
+//   stockout_risk: [...],
+//   model_accuracy: 0.942
+// }</span></div>
+        </div>
+        <div class="api-card">
+          <div class="api-card-title"><span class="method-badge post">POST</span> /api/sales/add</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Log today's sales to train the model</div>
+          <div class="code-block"><span class="cmt">// Log sales data (Phase 2)</span>
+<span class="kw">const</span> res = <span class="kw">await</span> fetch(
+  <span class="str">'/api/sales/add'</span>,
+  {
+    method: <span class="str">'POST'</span>,
+    body: JSON.stringify({
+      product_id: <span class="num">1</span>,
+      units_sold: <span class="num">12</span>,
+      date: <span class="str">"2025-03-30"</span>
+    })
+  }
+);</div>
+        </div>
+      </div>
+      <div class="api-note">
+        💡 <span class="hl">Phase 2 note:</span> Right now this page uses <span class="hl">mock/static data</span> generated by JavaScript.
+        When you build the Flask backend, simply replace the data arrays below with <span class="hl">fetch()</span> calls to your API.
+        Every function is already marked with a comment showing exactly where to plug in the real API call.
+        Your Flask server will run at <span class="hl">http://localhost:5000</span> during development.
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- ░░ RETRAIN PROGRESS OVERLAY ░░ -->
+<div class="retrain-overlay" id="retrainOverlay">
+  <div class="retrain-box">
+    <div class="retrain-title">🧠 Retraining AI Model</div>
+    <div class="retrain-sub">Please wait while InsightX retrains on your latest sales data...</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Initializing...</div>
+    <div class="retrain-steps" id="retrainSteps">
+      <div class="rtrain-step" id="rs1"><span class="rtrain-step-icon">⏳</span> Loading sales data from database</div>
+      <div class="rtrain-step" id="rs2"><span class="rtrain-step-icon">⏳</span> Engineering features (lag, rolling avg, day flags)</div>
+      <div class="rtrain-step" id="rs3"><span class="rtrain-step-icon">⏳</span> Training Random Forest (100 estimators)</div>
+      <div class="rtrain-step" id="rs4"><span class="rtrain-step-icon">⏳</span> Cross-validating model performance</div>
+      <div class="rtrain-step" id="rs5"><span class="rtrain-step-icon">⏳</span> Saving model to forecast_model.pkl</div>
+    </div>
+  </div>
+</div>
+
+<!-- ░░ TOAST ░░ -->
+<div id="toast">
+  <span id="toastIcon">✅</span>
+  <div>
+    <div class="toast-text" id="toastText"></div>
+    <div class="toast-sub"  id="toastSub"></div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════ JAVASCRIPT ═══════════════════ -->
+<script>
+  Chart.defaults.color = '#6b8cad';
+  Chart.defaults.borderColor = 'rgba(0,212,255,0.07)';
+  Chart.defaults.font.family = "'Syne', sans-serif";
+
+  /* ── MOCK DATA ───────────────────────────────────── */
+  // ← Phase 2: Replace each dataset here with fetch('/api/forecast/...') calls
+
+  const forecastProducts = [
+    { name:'Wireless Earbuds Pro X200', cat:'Electronics', stock:4,  hist:[38,42,35,48,44,52,47,55,50,60], forecast7:[58,63,61,70,68,75,72], trend:+22, conf:91 },
+    { name:'USB-C Fast Charger 65W',    cat:'Electronics', stock:67, hist:[20,25,22,28,24,30,26,32,28,35], forecast7:[36,38,35,40,42,39,44], trend:+8,  conf:95 },
+    { name:'Handmade Cotton Kurta (M)', cat:'Clothing',    stock:12, hist:[15,18,14,20,17,22,19,25,21,28], forecast7:[30,32,29,34,36,33,38], trend:+18, conf:88 },
+    { name:'Organic Basmati Rice 5kg',  cat:'Grocery',     stock:18, hist:[40,38,42,36,44,40,46,42,48,44], forecast7:[46,48,44,50,52,48,54], trend:+12, conf:93 },
+    { name:'Madhubani Art Print A3',    cat:'Handicraft',  stock:28, hist:[8,10,7,12,9,14,11,13,10,15],    forecast7:[14,16,13,17,15,18,16], trend:+6,  conf:86 },
+  ];
+
+  const days7  = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const days14 = ['W1 Mon','W1 Wed','W1 Fri','W1 Sun','W2 Mon','W2 Wed','W2 Fri','W2 Sun','W2 Mon','W2 Wed','W2 Fri','W2 Sun','W3 Mon','W3 Wed'];
+  const histLabels = ['D-9','D-8','D-7','D-6','D-5','D-4','D-3','D-2','D-1','Today'];
+
+  let currentHorizon = 7;
+  let mainChart = null;
+
+  /* ── MAIN FORECAST CHART ─────────────────────────── */
+  function buildMainChart(prodIdx, horizon) {
+    const p     = forecastProducts[prodIdx];
+    const hist  = p.hist;
+    const fcast = p.forecast7.slice(0, horizon);
+    const allLabels = [...histLabels, ...days7.slice(0,horizon)];
+    const actualData  = [...hist, ...Array(horizon).fill(null)];
+    const predictData = [...Array(hist.length-1).fill(null), hist[hist.length-1], ...fcast];
+    const upperBand   = [...Array(hist.length).fill(null), ...fcast.map(v=>Math.round(v*1.1))];
+    const lowerBand   = [...Array(hist.length).fill(null), ...fcast.map(v=>Math.round(v*0.9))];
+
+    if (mainChart) mainChart.destroy();
+    mainChart = new Chart(document.getElementById('mainForecastChart'), {
+      type:'line',
+      data:{
+        labels: allLabels,
+        datasets:[
+          { label:'Actual Sales', data:actualData, borderColor:'#0066ff', backgroundColor:'rgba(0,102,255,0.08)', borderWidth:2.5, pointRadius:4, pointHoverRadius:7, fill:true, tension:0.4 },
+          { label:'AI Forecast',  data:predictData, borderColor:'#00d4ff', backgroundColor:'transparent', borderWidth:2.5, borderDash:[6,3], pointRadius:5, pointHoverRadius:7, tension:0.4, pointBackgroundColor:'#00d4ff' },
+          { label:'Upper Band',   data:upperBand, borderColor:'transparent', backgroundColor:'rgba(0,212,255,0.08)', fill:'+1', pointRadius:0, tension:0.4 },
+          { label:'Lower Band',   data:lowerBand, borderColor:'transparent', backgroundColor:'rgba(0,212,255,0.08)', fill:false, pointRadius:0, tension:0.4 },
+        ]
+      },
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        interaction:{ intersect:false, mode:'index' },
+        plugins:{
+          legend:{ display:false },
+          tooltip:{
+            backgroundColor:'#0a1628', borderColor:'rgba(0,212,255,0.3)', borderWidth:1,
+            titleColor:'#e8f4fd', bodyColor:'#6b8cad', padding:12,
+            filter: item => item.datasetIndex < 2
+          },
+          annotation:{
+            annotations:{
+              line1:{ type:'line', xMin:histLabels.length-0.5, xMax:histLabels.length-0.5, borderColor:'rgba(168,85,247,0.5)', borderWidth:1, borderDash:[4,4], label:{ display:true, content:'Forecast Start', color:'#a855f7', font:{size:11} } }
+            }
+          }
+        },
+        scales:{
+          x:{ grid:{ color:'rgba(0,212,255,0.05)' } },
+          y:{ grid:{ color:'rgba(0,212,255,0.05)' }, ticks:{ callback:v=>v+' u' } }
+        }
+      }
+    });
+  }
+
+  function updateForecastChart() {
+    const idx = parseInt(document.getElementById('productSelect').value);
+    buildMainChart(idx, currentHorizon);
+  }
+
+  function setHorizon(h, btn) {
+    currentHorizon = h;
+    document.querySelectorAll('.h-tab').forEach(t=>t.classList.remove('active'));
+    btn.classList.add('active');
+    updateForecastChart();
+  }
+
+  buildMainChart(0, 7);
+
+  /* ── SEASONAL CHART ──────────────────────────────── */
+  new Chart(document.getElementById('seasonalChart'), {
+    type:'bar',
+    data:{
+      labels:['Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar'],
+      datasets:[
+        { label:'2024-25', data:[420,390,450,480,510,470,560,620,710,680,720,780], backgroundColor:'rgba(0,102,255,0.5)', borderRadius:4 },
+        { label:'Forecast', data:[null,null,null,null,null,null,null,null,null,null,null,820], backgroundColor:'rgba(0,212,255,0.6)', borderRadius:4 },
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{ padding:14, boxWidth:10, usePointStyle:true } },
+        tooltip:{ backgroundColor:'#0a1628', borderColor:'rgba(0,212,255,0.3)', borderWidth:1, padding:10, titleColor:'#e8f4fd', bodyColor:'#6b8cad' }
+      },
+      scales:{
+        x:{ grid:{ display:false } },
+        y:{ grid:{ color:'rgba(0,212,255,0.05)' }, ticks:{ callback:v=>v+' u' } }
+      }
+    }
+  });
+
+  /* ── CATEGORY CHART ──────────────────────────────── */
+  new Chart(document.getElementById('categoryChart'), {
+    type:'polarArea',
+    data:{
+      labels:['Electronics','Clothing','Grocery','Handicraft','General'],
+      datasets:[{
+        data:[185, 95, 140, 55, 75],
+        backgroundColor:['rgba(0,102,255,0.7)','rgba(136,68,255,0.7)','rgba(0,229,160,0.7)','rgba(255,165,0,0.7)','rgba(0,212,255,0.7)'],
+        borderColor:'#0a1628', borderWidth:2
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{ padding:12, boxWidth:10, usePointStyle:true, font:{size:11} } },
+        tooltip:{ backgroundColor:'#0a1628', borderColor:'rgba(0,212,255,0.3)', borderWidth:1, padding:10, titleColor:'#e8f4fd', bodyColor:'#6b8cad', callbacks:{ label: ctx => ` ${ctx.raw} units predicted` } }
+      },
+      scales:{ r:{ grid:{ color:'rgba(0,212,255,0.08)' }, ticks:{ display:false } } }
+    }
+  });
+
+  /* ── FORECAST TABLE ──────────────────────────────── */
+  function renderForecastTable() {
+    const tbody = document.getElementById('forecastTableBody');
+    tbody.innerHTML = forecastProducts.map(p => {
+      const f7  = p.forecast7.reduce((a,b)=>a+b,0);
+      const f14 = Math.round(f7 * 1.9);
+      const trendDir   = p.trend > 10 ? 'up' : p.trend < 0 ? 'down' : 'flat';
+      const trendLabel = p.trend > 0 ? `↑ ${p.trend}%` : p.trend < 0 ? `↓ ${Math.abs(p.trend)}%` : '→ Stable';
+      const stockout7  = p.stock < f7;
+      const stockout14 = p.stock < f14;
+      let restockClass, restockText;
+      if (stockout7)       { restockClass='urgent'; restockText=`🚨 Order NOW — stockout in <7 days`; }
+      else if (stockout14) { restockClass='soon';   restockText=`⚠️ Restock within 7 days`; }
+      else                 { restockClass='ok';     restockText=`✅ Stock sufficient for 14 days`; }
+      return `
+        <tr>
+          <td><div class="prod-name">${p.name}</div><div class="prod-cat">${p.cat}</div></td>
+          <td><span style="font-family:'Orbitron',monospace;font-size:0.9rem;font-weight:900;color:${p.stock<15?'var(--red)':p.stock<25?'var(--yellow)':'var(--green)'}">${p.stock}</span></td>
+          <td><strong style="font-family:'Orbitron',monospace">${f7}</strong> <span style="font-size:0.72rem;color:var(--text-muted)">units</span></td>
+          <td><strong style="font-family:'Orbitron',monospace">${f14}</strong> <span style="font-size:0.72rem;color:var(--text-muted)">units</span></td>
+          <td><span class="trend-pill ${trendDir}">${trendLabel}</span></td>
+          <td>
+            <div class="conf-bar"><div class="conf-fill" style="width:${p.conf}%"></div></div>
+            <span class="conf-val">${p.conf}%</span>
+          </td>
+          <td><span class="restock-rec ${restockClass}">${restockText}</span></td>
+        </tr>`;
+    }).join('');
+  }
+  renderForecastTable();
+
+  /* ── RETRAIN SIMULATION ──────────────────────────── */
+  // ← Phase 2: Replace this with fetch('/api/model/retrain', {method:'POST'})
+  function startRetrain() {
+    document.getElementById('retrainOverlay').classList.add('open');
+    const fill  = document.getElementById('progressFill');
+    const label = document.getElementById('progressLabel');
+    const steps = [
+      { id:'rs1', pct:20,  msg:'Loading sales data...',          icon:'✅' },
+      { id:'rs2', pct:40,  msg:'Engineering features...',        icon:'✅' },
+      { id:'rs3', pct:65,  msg:'Training Random Forest...',      icon:'✅' },
+      { id:'rs4', pct:85,  msg:'Cross-validating results...',    icon:'✅' },
+      { id:'rs5', pct:100, msg:'Saving model (pkl file)...',     icon:'✅' },
+    ];
+    let i = 0;
+    const el = document.getElementById(steps[0].id);
+    el.classList.add('active');
+    const timer = setInterval(() => {
+      if (i >= steps.length) {
+        clearInterval(timer);
+        setTimeout(() => {
+          document.getElementById('retrainOverlay').classList.remove('open');
+          showToast('🧠','Model retrained!','New accuracy: 94.2% · Saved to forecast_model.pkl','success');
+        }, 700);
+        return;
+      }
+      const s = steps[i];
+      fill.style.width = s.pct + '%';
+      label.textContent = s.msg;
+      const stepEl = document.getElementById(s.id);
+      stepEl.classList.remove('active'); stepEl.classList.add('done');
+      stepEl.querySelector('.rtrain-step-icon').textContent = s.icon;
+      i++;
+      if (i < steps.length) document.getElementById(steps[i].id).classList.add('active');
+    }, 900);
+  }
+
+  /* ── EXPORT ──────────────────────────────────────── */
+  function exportForecast() {
+    const header = 'Product,Category,Current Stock,7-Day Forecast,14-Day Forecast,Trend,Confidence\n';
+    const rows   = forecastProducts.map(p => {
+      const f7  = p.forecast7.reduce((a,b)=>a+b,0);
+      const f14 = Math.round(f7*1.9);
+      return `"${p.name}","${p.cat}",${p.stock},${f7},${f14},${p.trend>0?'+'+p.trend:p.trend}%,${p.conf}%`;
+    }).join('\n');
+    const blob = new Blob([header+rows], {type:'text/csv'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a'); a.href=url; a.download='insightx_forecast.csv'; a.click();
+    URL.revokeObjectURL(url);
+    showToast('⬇️','Forecast exported','insightx_forecast.csv downloaded.','success');
+  }
+
+  /* ── TOAST ───────────────────────────────────────── */
+  function showToast(icon,text,sub,type='success') {
+    const t=document.getElementById('toast');
+    document.getElementById('toastIcon').textContent=icon;
+    document.getElementById('toastText').textContent=text;
+    document.getElementById('toastSub').textContent=sub;
+    t.className='show';
+    t.style.borderColor=type==='success'?'rgba(0,229,160,0.3)':'rgba(255,68,85,0.3)';
+    setTimeout(()=>t.className='',3800);
+  }
+</script>
+</body>
+</html>
